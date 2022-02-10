@@ -2,7 +2,7 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "group:GhostBustersLights.ino">
+      location = "group:ghostbusters.lights.ino">
    </FileRef>
    <FileRef
       location = "group:light_state_machine.cpp">
