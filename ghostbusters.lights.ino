@@ -14,10 +14,10 @@
 #define PIN        6
 
 // How many NeoPixels are attached to the Arduino?
-#define NUMPIXELS        28
 #define kRampPixels      14
 #define kCyclotronPixels 14
 #define kCyclotronBase1  kRampPixels
+#define NUMPIXELS        (kRampPixels + kCyclotronPixels)
 
 // When setting up the NeoPixel library, we tell it how many pixels,
 // and which pin to use to send signals. Note that for older NeoPixel
