@@ -60,8 +60,8 @@ enum
 
 enum
 {
-    kSpinSlowIntervalTimeMS = 80,
-    kSpinFastIntervalTimeMS = 20,
+    kSpinSlowIntervalTimeMS = 200,
+    kSpinFastIntervalTimeMS = 15,
     kSpinStartupIntervalTimeMS = 1000,
     kSpinRampUpIntervalTimeMS = 4000
 };
@@ -75,8 +75,11 @@ bool cyclotron_spin_forever( LightState* state );
 
 
 
+
 void setup() 
 {
+     randomSeed( analogRead( 0 ) );
+ 
     // INITIALIZE NeoPixel strip object (REQUIRED)
     pixels.begin(); 
 
@@ -146,7 +149,7 @@ bool cyclontron_clear( int lightBaseIndex, size_t pixelCount )
 
 
 
-bool cyclontron_twinkle( int lightBaseIndex, LightState* state )
+bool cyclontron_ramp( int lightBaseIndex, LightState* state )
 {
     // pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
     pixels.setPixelColor( lightBaseIndex + state->counter, pixels.Color( 5, 0, 0 ) );
@@ -157,12 +160,26 @@ bool cyclontron_twinkle( int lightBaseIndex, LightState* state )
 }
 
 
+bool cyclontron_twinkle( int lightBaseIndex, size_t pixelCount, LightState* state )
+{
+    cyclontron_clear( lightBaseIndex, pixelCount );
+    int32_t randomPixel = random( 0, pixelCount );
+    pixels.setPixelColor( lightBaseIndex + randomPixel, pixels.Color( 5, 0, 0 ) );
+    
+    state->counter++;
+    state->start_time = millis();
+    return false;
+}
+
+
 bool cyclotron_spin_forever( LightState* state )
 {
-    uint32_t current  = millis();
-    uint32_t interval = current - state->start_time;
-    static uint32_t speed = kSpinSlowIntervalTimeMS;
-    
+    uint32_t        current  = millis();
+    uint32_t        interval = current - state->start_time;
+    static int32_t  speed    = kSpinSlowIntervalTimeMS;
+    static bool     ramp     = false;
+    static uint32_t startupCount = 0;
+
     // first step is to clear the lights
     if( state->step == kSpinState_Startup )
     {
@@ -180,7 +197,10 @@ bool cyclotron_spin_forever( LightState* state )
     {
         if( interval >= speed )
         {
-            cyclontron_twinkle( kCyclotronBase0, state );
+            if( ramp )
+                cyclontron_ramp( kCyclotronBase0, state );
+            else
+                cyclontron_twinkle( kCyclotronBase0, kCyclotron0Pixels, state );
             if( state->counter > kCyclotron0Pixels )
             {
                 cyclontron_clear( kCyclotronBase0, kCyclotron0Pixels );
@@ -195,7 +215,10 @@ bool cyclotron_spin_forever( LightState* state )
     {
         if( interval >= speed )
         {
-            cyclontron_twinkle( kCyclotronBase1, state );
+            if( ramp )
+                cyclontron_ramp( kCyclotronBase1, state );
+            else
+                cyclontron_twinkle( kCyclotronBase1, kCyclotron1Pixels, state );
             if( state->counter > kCyclotron1Pixels )
             {
                 cyclontron_clear( kCyclotronBase1, kCyclotron1Pixels );
@@ -209,7 +232,10 @@ bool cyclotron_spin_forever( LightState* state )
     {
         if( interval >= speed )
         {
-            cyclontron_twinkle( kCyclotronBase2, state );
+            if( ramp )
+                cyclontron_ramp( kCyclotronBase2, state );
+            else
+                cyclontron_twinkle( kCyclotronBase2, kCyclotron2Pixels, state );
             if( state->counter > kCyclotron2Pixels )
             {
                 cyclontron_clear( kCyclotronBase2, kCyclotron2Pixels );
@@ -223,17 +249,26 @@ bool cyclotron_spin_forever( LightState* state )
     {
         if( interval >= speed )
         {
-            cyclontron_twinkle( kCyclotronBase3, state );
+            if( ramp )
+                cyclontron_ramp( kCyclotronBase3, state );
+            else
+                cyclontron_twinkle( kCyclotronBase3, kCyclotron3Pixels, state );
+                
             if( state->counter > kCyclotron3Pixels )
             {
                 cyclontron_clear( kCyclotronBase3, kCyclotron3Pixels );
                 state->step = kSpinState_Light0;  // start back at the beginning, don't end
                 state->counter = 0;
 
-
                 // each time around, make the speed faster until we hit the fastest speed
                 if( speed > kSpinFastIntervalTimeMS )
-                  speed -= 2;
+                {
+                    float fspeed = speed / 1.2f;
+                    speed = (int32_t)(fspeed + 0.5f); // round before truncating...
+                }
+                // after four go-arounds of startup, switch to ramping...
+                if( startupCount++ > 2 )
+                    ramp = true;
             }
         }
     }
