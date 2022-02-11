@@ -14,10 +14,18 @@
 #define PIN        6
 
 // How many NeoPixels are attached to the Arduino?
-#define kRampPixels      14
-#define kCyclotronPixels 14
-#define kCyclotronBase1  kRampPixels
-#define NUMPIXELS        (kRampPixels + kCyclotronPixels)
+#define kRampPixels       14
+#define kCyclotron0Pixels 4
+#define kCyclotron1Pixels 4
+#define kCyclotron2Pixels 4
+#define kCyclotron3Pixels 4
+#define kCyclontronPixelCount (kCyclotron0Pixels + kCyclotron1Pixels + kCyclotron2Pixels + kCyclotron3Pixels)
+#define kCyclotronBase0       kRampPixels
+#define kCyclotronBase1       (kCyclotronBase0 + kCyclotron0Pixels)
+#define kCyclotronBase2       (kCyclotronBase1 + kCyclotron1Pixels)
+#define kCyclotronBase3       (kCyclotronBase2 + kCyclotron2Pixels)
+
+#define NUMPIXELS  (kRampPixels + kCyclontronPixelCount)
 
 // When setting up the NeoPixel library, we tell it how many pixels,
 // and which pin to use to send signals. Note that for older NeoPixel
@@ -25,7 +33,6 @@
 // strandtest example for more information on possible values.
 Adafruit_NeoPixel pixels( NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800 );
 
-#define DELAYVAL 50 // Time (in milliseconds) to pause between pixels
 
 
 // ------------------------------------------
@@ -41,12 +48,30 @@ enum
 };
 
 
+// ------------------------------------------
+enum
+{
+    kSpinState_Startup = 0,
+    kSpinState_Light0,
+    kSpinState_Light1,
+    kSpinState_Light2,
+    kSpinState_Light3
+};
+
+enum
+{
+    kSpinSlowIntervalTimeMS = 80,
+    kSpinFastIntervalTimeMS = 20,
+    kSpinStartupIntervalTimeMS = 1000,
+    kSpinRampUpIntervalTimeMS = 4000
+};
+
 
 
 // Forward declares ------------------------------------------------------
 
 bool lights_ramp_forever( LightState* state );
-
+bool cyclotron_spin_forever( LightState* state );
 
 
 
@@ -57,7 +82,7 @@ void setup()
 
     light_state_machine_setup( true );
     light_stack_push( lights_ramp_forever );
-    light_stack_push( cyclotron_test_forever );    
+    light_stack_push( cyclotron_spin_forever );    
 }
 
 
@@ -111,43 +136,109 @@ bool lights_ramp_forever( LightState* state )
 }
 
 
+bool cyclontron_clear( int lightBaseIndex, size_t pixelCount )
+{
+    for( int i = 0; i < pixelCount; i++ )
+      pixels.setPixelColor( lightBaseIndex + i, pixels.Color( 0, 0, 0 ) );
+
+    return false;
+}
 
 
-bool cyclotron_test_forever( LightState* state )
+
+bool cyclontron_twinkle( int lightBaseIndex, LightState* state )
+{
+    // pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
+    pixels.setPixelColor( lightBaseIndex + state->counter, pixels.Color( 5, 0, 0 ) );
+    
+    state->counter++;
+    state->start_time = millis();
+    return false;
+}
+
+
+bool cyclotron_spin_forever( LightState* state )
 {
     uint32_t current  = millis();
     uint32_t interval = current - state->start_time;
+    static uint32_t speed = kSpinSlowIntervalTimeMS;
     
     // first step is to clear the lights
-    if( state->step == kRampState_Start )
+    if( state->step == kSpinState_Startup )
     {
-        for( int i = 0; i < kCyclotronPixels; i++ )
-            pixels.setPixelColor( kCyclotronBase1 + i, pixels.Color( 0, 0, 0 ) );
+        for( int i = 0; i < kCyclontronPixelCount; i++ )
+            pixels.setPixelColor( kCyclotronBase0 + i, pixels.Color( 0, 0, 0 ) );
 
         state->start_time = current;
         state->step++;
+        speed = kSpinSlowIntervalTimeMS; // slowest speed
         return false;
     }
         
     // next step is to look at the time, stay here till we cross the threshold
-    if( state->step == kRampState_Increase )
+    if( state->step == kSpinState_Light0 )
     {
-        if( interval >= kRampIntervalTimeMS )
+        if( interval >= speed )
         {
-            // pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
-            pixels.setPixelColor( kCyclotronBase1 + state->counter, pixels.Color( 5, 0, 0 ) );
-
-            state->counter++;
-            state->start_time = current;
-
-            if( state->counter >= kCyclotronPixels )
+            cyclontron_twinkle( kCyclotronBase0, state );
+            if( state->counter > kCyclotron0Pixels )
             {
-                state->step = kRampState_Start;  // start back at the beginning, don't end
+                cyclontron_clear( kCyclotronBase0, kCyclotron0Pixels );
+                state->step = kSpinState_Light1;  // go to next cyclotron window
                 state->counter = 0;
             }
         }
     }
     
+
+    if( state->step == kSpinState_Light1 )
+    {
+        if( interval >= speed )
+        {
+            cyclontron_twinkle( kCyclotronBase1, state );
+            if( state->counter > kCyclotron1Pixels )
+            {
+                cyclontron_clear( kCyclotronBase1, kCyclotron1Pixels );
+                state->step = kSpinState_Light2;  // go to next cyclotron window
+                state->counter = 0;
+            }
+        }
+    }
+
+    if( state->step == kSpinState_Light2 )
+    {
+        if( interval >= speed )
+        {
+            cyclontron_twinkle( kCyclotronBase2, state );
+            if( state->counter > kCyclotron2Pixels )
+            {
+                cyclontron_clear( kCyclotronBase2, kCyclotron2Pixels );
+                state->step = kSpinState_Light3; // go to next cyclotron window
+                state->counter = 0;
+            }
+        }
+    }
+
+    if( state->step == kSpinState_Light3 )
+    {
+        if( interval >= speed )
+        {
+            cyclontron_twinkle( kCyclotronBase3, state );
+            if( state->counter > kCyclotron3Pixels )
+            {
+                cyclontron_clear( kCyclotronBase3, kCyclotron3Pixels );
+                state->step = kSpinState_Light0;  // start back at the beginning, don't end
+                state->counter = 0;
+
+
+                // each time around, make the speed faster until we hit the fastest speed
+                if( speed > kSpinFastIntervalTimeMS )
+                  speed -= 2;
+            }
+        }
+    }
+
+ 
     return false; // run forever
 }
 
