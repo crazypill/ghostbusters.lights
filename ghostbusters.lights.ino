@@ -267,7 +267,7 @@ bool cyclotron_spin_forever( LightState* state )
                     speed = (int32_t)(fspeed + 0.5f); // round before truncating...
                 }
                 // after a few go-arounds of startup, switch to ramping...
-                if( startupCount++ > 2 )
+                if( ++startupCount > 2 )
                     ramp = true;
             }
         }
