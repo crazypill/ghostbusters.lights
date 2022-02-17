@@ -11,7 +11,7 @@
 
 
 // Which pin on the Arduino is connected to the NeoPixels?
-#define PIN        6
+#define PIN        4
 
 // How many NeoPixels are attached to the Arduino?
 #define kRampPixels       14
@@ -34,7 +34,6 @@
 Adafruit_NeoPixel pixels( NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800 );
 
 
-
 // ------------------------------------------
 enum
 {
@@ -44,7 +43,10 @@ enum
 
 enum
 {
-    kRampIntervalTimeMS  = 50
+    kRampIntervalTimeMS  = 50,
+
+    kFlashInterval = 4000,
+    kFlashPeriod   = 100
 };
 
 
@@ -72,6 +74,7 @@ enum
 
 bool lights_ramp_forever( LightState* state );
 bool cyclotron_spin_forever( LightState* state );
+bool heartbeat( LightState* state );
 
 
 
@@ -84,8 +87,12 @@ void setup()
     pixels.begin(); 
 
     light_state_machine_setup( true );
+
     light_stack_push( lights_ramp_forever );
     light_stack_push( cyclotron_spin_forever );    
+    light_stack_push( heartbeat );    
+
+    flash_led( 1 );
 }
 
 
@@ -98,6 +105,30 @@ void loop()
     pixels.show();
 }
 
+
+bool heartbeat( LightState* state )
+{
+    uint32_t current  = millis();
+    uint32_t interval = current - state->start_time;
+    
+    if( (state->step == 0) && (interval >= kFlashInterval) )
+    {
+        digitalWrite( LED_BUILTIN, HIGH );
+        ++state->step;
+        state->start_time = current;
+    }
+    else if( (state->step == 1) && (interval >= kFlashPeriod) )
+    {
+        digitalWrite( LED_BUILTIN, LOW );
+        ++state->step;
+        state->start_time = current;
+    }
+
+    if( state->step > 1 )
+      state->step = 0;
+
+    return false;
+}
 
 
 bool lights_ramp_forever( LightState* state )
