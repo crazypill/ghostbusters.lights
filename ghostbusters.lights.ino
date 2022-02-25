@@ -2,6 +2,10 @@
 
 #include "light_state_machine.h"
 
+#include <adafruit_ptc.h>
+#include <samd21_ptc_component.h>
+#include <Adafruit_FreeTouch.h>
+#include <Adafruit_Soundboard.h>
 
 
 #include <Adafruit_NeoPixel.h>
@@ -11,7 +15,20 @@
 
 
 // Which pin on the Arduino is connected to the NeoPixels?
-#define PIN        4
+#define PIN        0
+
+// Connect to the RST pin on the Sound Board
+#define SFX_RST    2
+
+// You can also monitor the ACT pin for when audio is playing!
+
+// pass the software serial to Adafruit_soundboard, the second
+// argument is the debug port (not used really) and the third 
+// arg is the reset pin
+// can also try hardware serial with
+Adafruit_Soundboard sfx = Adafruit_Soundboard( &Serial1, NULL, SFX_RST );
+Adafruit_FreeTouch qt_1 = Adafruit_FreeTouch( A0, OVERSAMPLE_4, RESISTOR_0, FREQ_MODE_NONE );
+
 
 // How many NeoPixels are attached to the Arduino?
 #define kRampPixels       14
@@ -81,8 +98,19 @@ bool heartbeat( LightState* state );
 
 void setup() 
 {
-     randomSeed( analogRead( 0 ) );
- 
+    Serial.begin( 115200 );
+    Serial1.begin( 9600 );
+    randomSeed( analogRead( 1 ) );
+
+    if( !sfx.reset() )
+    {
+        Serial.println("Soundboard not found");
+//        while (1);
+    }
+
+    if( !qt_1.begin() )  
+        Serial.println("Failed to begin qt on pin A0");
+    
     // INITIALIZE NeoPixel strip object (REQUIRED)
     pixels.begin(); 
 
@@ -91,6 +119,15 @@ void setup()
     light_stack_push( lights_ramp_forever );
     light_stack_push( cyclotron_spin_forever );    
     light_stack_push( heartbeat );    
+
+//    // crank up the volume
+//    uint16_t v;
+//    while( (v = sfx.volUp()) ) {
+//        Serial.print("Volume: "); Serial.println(v);
+//    }
+
+    if( !sfx.playTrack( (uint8_t)1 ) )
+        Serial.println( "Failed to play startup track" );
 
     flash_led( 1 );
 }
@@ -103,6 +140,32 @@ void loop()
     
     // Send the updated pixel colors to the hardware.
     pixels.show();
+
+    poll_cap_touch();
+}
+
+static bool s_sound_latch = false;
+
+void poll_cap_touch() 
+{
+  int counter, result = 0; 
+  counter = millis();
+  result = qt_1.measure(); 
+//  Serial.print("QT 1: "); Serial.print(result);
+//  Serial.print(" (");  Serial.print(millis() - counter); Serial.println(" ms)");
+//  Serial.println("\n*************************************"); 
+
+  if( result > 1000 && !s_sound_latch )
+      s_sound_latch = true;
+
+  if( s_sound_latch )
+  {
+      sfx.playTrack( (uint8_t)1 );
+      s_sound_latch = false;
+  }        
+
+
+//  delay(200);
 }
 
 
@@ -153,7 +216,7 @@ bool lights_ramp_forever( LightState* state )
         if( interval >= kRampIntervalTimeMS )
         {
             // pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
-            pixels.setPixelColor( state->counter, pixels.Color( 0, 0, 10 ) );
+            pixels.setPixelColor( kRampPixels - state->counter - 1, pixels.Color( 0, 0, 10 ) );
 
             state->counter++;
             state->start_time = current;
