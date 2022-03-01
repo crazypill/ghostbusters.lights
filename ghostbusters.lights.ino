@@ -20,6 +20,11 @@
 // Connect to the RST pin on the Sound Board
 #define SFX_RST    2
 
+#define SFX_STARTUP_SOUND   1
+#define SFX_SSHUTDOWN_SOUND 2
+#define SFX_HUM_SOUND       0 
+
+
 // You can also monitor the ACT pin for when audio is playing!
 
 // pass the software serial to Adafruit_soundboard, the second
@@ -49,6 +54,9 @@ Adafruit_FreeTouch qt_1 = Adafruit_FreeTouch( A0, OVERSAMPLE_4, RESISTOR_0, FREQ
 // strips you might need to change the third parameter -- see the
 // strandtest example for more information on possible values.
 Adafruit_NeoPixel pixels( NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800 );
+
+
+static bool s_sound_latch = false;
 
 
 // ------------------------------------------
@@ -94,8 +102,6 @@ bool cyclotron_spin_forever( LightState* state );
 bool heartbeat( LightState* state );
 
 
-
-
 void setup() 
 {
     Serial.begin( 115200 );
@@ -126,8 +132,10 @@ void setup()
 //        Serial.print("Volume: "); Serial.println(v);
 //    }
 
-    if( !sfx.playTrack( (uint8_t)1 ) )
-        Serial.println( "Failed to play startup track" );
+    play_track_no_wait( &Serial1, SFX_STARTUP_SOUND );
+
+//    if( !sfx.playTrack( (uint8_t)SFX_STARTUP_SOUND ) )
+//        Serial.println( "Failed to play startup track" );
 
     flash_led( 1 );
 }
@@ -144,7 +152,13 @@ void loop()
     poll_cap_touch();
 }
 
-static bool s_sound_latch = false;
+
+void play_track_no_wait( Stream* stream, uint8_t n )
+{
+  stream->print( "#" );
+  stream->println( n );
+}
+
 
 void poll_cap_touch() 
 {
@@ -156,11 +170,15 @@ void poll_cap_touch()
 //  Serial.println("\n*************************************"); 
 
   if( result > 1000 && !s_sound_latch )
-      s_sound_latch = true;
+  {
+      s_sound_latch = true; // !!@ make this latch last longer so repetitive inputs are ignored.
+      return;
+  }
 
   if( s_sound_latch )
   {
-      sfx.playTrack( (uint8_t)1 );
+//      sfx.playTrack( (uint8_t)SFX_STARTUP_SOUND );
+      play_track_no_wait( &Serial1, SFX_STARTUP_SOUND );
       s_sound_latch = false;
   }        
 
