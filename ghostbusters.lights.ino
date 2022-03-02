@@ -35,7 +35,6 @@ Adafruit_Soundboard sfx = Adafruit_Soundboard( &Serial1, NULL, SFX_RST );
 Adafruit_FreeTouch qt_1 = Adafruit_FreeTouch( A0, OVERSAMPLE_4, RESISTOR_0, FREQ_MODE_NONE );
 
 
-// How many NeoPixels are attached to the Arduino?
 #define kRampPixels       14
 #define kCyclotron0Pixels 4
 #define kCyclotron1Pixels 4
@@ -47,16 +46,16 @@ Adafruit_FreeTouch qt_1 = Adafruit_FreeTouch( A0, OVERSAMPLE_4, RESISTOR_0, FREQ
 #define kCyclotronBase2       (kCyclotronBase1 + kCyclotron1Pixels)
 #define kCyclotronBase3       (kCyclotronBase2 + kCyclotron2Pixels)
 
+// How many NeoPixels are attached to the Arduino?
 #define NUMPIXELS  (kRampPixels + kCyclontronPixelCount)
-
-// When setting up the NeoPixel library, we tell it how many pixels,
-// and which pin to use to send signals. Note that for older NeoPixel
-// strips you might need to change the third parameter -- see the
-// strandtest example for more information on possible values.
 Adafruit_NeoPixel pixels( NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800 );
 
 
-static bool s_sound_latch = false;
+// ------------------------------------------ Static data
+
+
+static bool     s_sound_latch = false;
+static uint32_t sLast_poll    = 0;
 
 
 // ------------------------------------------
@@ -162,28 +161,26 @@ void play_track_no_wait( Stream* stream, uint8_t n )
 
 void poll_cap_touch() 
 {
-  int counter, result = 0; 
-  counter = millis();
-  result = qt_1.measure(); 
-//  Serial.print("QT 1: "); Serial.print(result);
-//  Serial.print(" (");  Serial.print(millis() - counter); Serial.println(" ms)");
-//  Serial.println("\n*************************************"); 
+    uint32_t current  = millis();
+    uint32_t interval = current - sLast_poll;
 
-  if( result > 1000 && !s_sound_latch )
-  {
-      s_sound_latch = true; // !!@ make this latch last longer so repetitive inputs are ignored.
-      return;
-  }
+    // look at the capacitive switch
+    uint32_t result = qt_1.measure(); 
 
-  if( s_sound_latch )
-  {
-//      sfx.playTrack( (uint8_t)SFX_STARTUP_SOUND );
-      play_track_no_wait( &Serial1, SFX_STARTUP_SOUND );
-      s_sound_latch = false;
-  }        
-
-
-//  delay(200);
+    if( result > 1000 && !s_sound_latch )
+    {
+        s_sound_latch = true; // !!@ make this latch last longer so repetitive inputs are ignored- use interval!
+        return;
+    }
+  
+    if( s_sound_latch )
+    {
+  //      sfx.playTrack( (uint8_t)SFX_STARTUP_SOUND );
+        play_track_no_wait( &Serial1, SFX_STARTUP_SOUND );
+        s_sound_latch = false;
+    }        
+  
+    sLast_poll = current;
 }
 
 
